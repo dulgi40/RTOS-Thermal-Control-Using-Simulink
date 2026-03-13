@@ -20,6 +20,13 @@ Simulink で設計した温度制御アルゴリズムを、STM32 + FreeRTOS 環
 ```
 set_temp = 45°C
 heat_input = 1.8
+検証シナリオによって heat_input パラメータを変更しました。
+
+| 検証ケース | heat_input |
+|------------|-----------|
+| Plant / P制御 / PI制御 | 1.8 |
+| Anti-windup 検証 | 変更 |
+| Fault / Fail-safe 検証 | 変更 |
 ```
 
 30秒間ログを出力
@@ -65,7 +72,7 @@ Queue を使用してタスク間でデータを受け渡しています。
 
 ### System Overview
 
-![System Overview](./02_Model_Simulation/results/%23Uc804%23Uccb4%23Uc2dc%23Uc2a4%23Ud15c.png)
+![System Overview](./02_Model_Simulation/results/SystemOverview.png)
 
 ### Control System
 
