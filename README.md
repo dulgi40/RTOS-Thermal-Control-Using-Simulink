@@ -28,13 +28,14 @@ This architecture is similar to a typical embedded control system or ECU structu
 set_temp = 45°C
 heat_input = 1.8
 検証シナリオによって heat_input パラメータを変更しました。
+```
 
 | 検証ケース | heat_input |
 |------------|-----------|
 | Plant / P制御 / PI制御 | 1.8 |
 | Anti-windup 検証 | 変更 |
 | Fault / Fail-safe 検証 | 変更 |
-```
+
 
 30秒間ログを出力
 
