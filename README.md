@@ -11,6 +11,13 @@ Simulink で設計した温度制御アルゴリズムを、STM32 + FreeRTOS 環
 - UART ログによる動作確認
 - LED による Fault 状態表示
 
+## System Architecture
+
+The system separates the control layer, safety layer, and plant model.
+This architecture is similar to a typical embedded control system or ECU structure.
+
+![System Architecture](./02_Model_Simulation/results/System/System_Architecture.png)
+
 ## Control Modes
 
 ### Preset Mode
