@@ -37,7 +37,7 @@ heat_input = 1.8
 | Fault / Fail-safe 検証 | 変更 |
 
 
-30秒間ログを出力
+10秒間ログを出力
 
 ### Potentiometer Mode
 
