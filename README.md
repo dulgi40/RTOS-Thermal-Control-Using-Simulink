@@ -72,19 +72,19 @@ Queue を使用してタスク間でデータを受け渡しています。
 
 ### System Overview
 
-![System Overview](./02_Model_Simulation/results/SystemOverview.png)
+![System Overview](./02_Model_Simulation/results/System/System_Overview.png)
 
 ### Control System
 
-![Control System](./02_Model_Simulation/results/Control%20System.png)
+![Control System](./02_Model_Simulation/results/System/Control_System.png)
 
 ### Plant Subsystem
 
-![Plant Subsystem](./02_Model_Simulation/results/Plant%20Subsystem.png)
+![Plant Subsystem](./02_Model_Simulation/results/System/Plant_Subsystem.png)
 
 ### SafetyManager Subsystem
 
-![SafetyManager](./02_Model_Simulation/results/SafetyManager%20%20Subsystem.png)
+![SafetyManager](./02_Model_Simulation/results/System/SafetyManager_Subsystem.png)
 
 ## Development Environment
 
