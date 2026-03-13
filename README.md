@@ -128,21 +128,32 @@ Queue を使用してタスク間でデータを受け渡しています。
 
 ## Simulation Model
 
+<details>
+<summary>Simulink Model Structure</summary>
+
 ### System Overview
 
 ![System Overview](./02_Model_Simulation/results/System/System_Overview.png)
+
+---
 
 ### Control System
 
 ![Control System](./02_Model_Simulation/results/System/Control_System.png)
 
+---
+
 ### Plant Subsystem
 
 ![Plant Subsystem](./02_Model_Simulation/results/System/Plant_Subsystem.png)
 
+---
+
 ### SafetyManager Subsystem
 
 ![SafetyManager](./02_Model_Simulation/results/System/SafetyManager_Subsystem.png)
+
+</details>
 
 ## Development Environment
 
