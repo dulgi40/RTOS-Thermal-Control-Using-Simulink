@@ -13,10 +13,55 @@ Simulink で設計した温度制御アルゴリズムを、STM32 + FreeRTOS 環
 
 ## System Architecture
 
-The system separates the control layer, safety layer, and plant model.
-This architecture is similar to a typical embedded control system or ECU structure.
+本システムは、制御ロジック・安全管理・プラントモデルを分離した構成で設計されています。  
+この構造は組み込み制御システムや ECU ソフトウェアのアーキテクチャを意識したものです。
+
+制御アルゴリズムは PI 制御と Anti-Windup を組み合わせて構成されており、
+Safety Manager が異常状態を監視し、異常発生時にはフェイルセーフ動作を実行します。
 
 ![System Architecture](./02_Model_Simulation/results/System/System_Architecture.png)
+
+## 制御結果
+
+### プラント応答 (Open-loop)
+
+![Plant Response](./02_Model_Simulation/results/Graph/plant_response.png)
+
+フィードバック制御がない場合、熱入力により温度が継続的に上昇することを確認できます。
+
+---
+
+### P制御
+
+![P Controller](./02_Model_Simulation/results/Graph/p_controller.png)
+
+比例制御では温度誤差は減少しますが、定常偏差が残ることを確認しました。
+
+---
+
+### PI制御
+
+![PI Controller](./02_Model_Simulation/results/Graph/pi_controller.png)
+
+積分項を追加することで定常偏差が解消され、目標温度への追従性能が改善されました。
+
+---
+
+### Anti-Windup 比較
+
+![Anti-Windup](./02_Model_Simulation/results/Graph/anti_windup.png)
+
+アクチュエータ飽和時に積分項が過剰に増加する問題を防ぐため、
+Anti-Windup 機構を適用しました。
+
+---
+
+### Fault / Fail-safe 動作
+
+![Fault](./02_Model_Simulation/results/Graph/fault_response.png)
+
+温度が安全閾値を超えた場合、Safety Manager が異常を検出し、
+最大冷却出力によるフェイルセーフ動作を実行します。
 
 ## Control Modes
 
