@@ -1,2 +1,101 @@
-# RTOS-Thermal-Control-Using-Simulink
-RTOS-based Thermal Control System using Simulink
+# RTOS-based Thermal Control System Using Simulink
+
+Simulink で設計した温度制御アルゴリズムを、STM32 + FreeRTOS 環境で動作確認した個人プロジェクトです。  
+このプロジェクトでは Software Plant を用いて閉ループ制御の動作を検証しました。
+
+## Overview
+
+- Simulink による温度制御モデル設計
+- PI 制御 + Anti-windup
+- STM32 + FreeRTOS での周期制御
+- UART ログによる動作確認
+- LED による Fault 状態表示
+
+## Control Modes
+
+### Preset Mode
+
+固定目標温度
+
+```
+set_temp = 45°C
+heat_input = 1.8
+```
+
+30秒間ログを出力
+
+### Potentiometer Mode
+
+ADC 入力から目標温度を決定
+
+```
+30°C ～ 60°C
+```
+
+1秒ごとに状態ログを出力
+
+## RTOS Structure
+
+```
+ControlTask
+  ├ control algorithm
+  ├ safety manager
+  └ plant update
+
+InputTask
+  ├ UART mode selection
+  └ ADC setpoint input
+
+LoggingTask
+  └ UART monitoring
+```
+
+Queue を使用してタスク間でデータを受け渡しています。
+
+## Project Structure
+
+```
+01_Design_Docs
+02_Model_Simulation
+└ results
+03_Hardware_Implementation
+```
+
+## Simulation Model
+
+### System Overview
+
+![System Overview](./02_Model_Simulation/results/%23Uc804%23Uccb4%23Uc2dc%23Uc2a4%23Ud15c.png)
+
+### Control System
+
+![Control System](./02_Model_Simulation/results/Control%20System.png)
+
+### Plant Subsystem
+
+![Plant Subsystem](./02_Model_Simulation/results/Plant%20Subsystem.png)
+
+### SafetyManager Subsystem
+
+![SafetyManager](./02_Model_Simulation/results/SafetyManager%20%20Subsystem.png)
+
+## Development Environment
+
+```
+MCU        : STM32F446RE
+RTOS       : FreeRTOS
+Modeling   : MATLAB / Simulink
+Language   : Embedded C
+IDE        : STM32CubeIDE
+```
+
+## Notes
+
+このバージョン (v1) では実センサではなく Software Plant を使用して制御アルゴリズムの検証を行いました。
+
+今後の拡張予定
+
+- 実温度センサ入力
+- PWM ファン制御
+- OLED 状態表示
+- Fault / Fail-safe ロジック拡張
