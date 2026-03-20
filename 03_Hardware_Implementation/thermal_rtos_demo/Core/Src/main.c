@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "thermal_project.h"
+#include "thermal_project_v2.h"
 #include "stdio.h"
 #include "queue.h"
 /* USER CODE END Includes */
@@ -65,7 +65,7 @@ typedef struct
 {
     uint8_t mode;
     float set_temp;
-    float heat_input;
+    float temp;
 } InputMsg_t;
 
 typedef struct
@@ -96,7 +96,7 @@ void StartTask03(void const * argument);
 void StartTask04(void const * argument);
 
 /* USER CODE BEGIN PFP */
-uint32_t Read_ADC_Value(void);
+uint32_t Read_ADC_Value(uint32_t channel);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -161,9 +161,6 @@ int main(void)
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
-
-  /* Create the queue(s) */
-
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -294,7 +291,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_84CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -406,6 +403,9 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6|GPIO_PIN_8, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
@@ -413,6 +413,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PC6 PC8 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB4 PB5 */
   GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5;
@@ -428,9 +435,16 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 /* USER CODE BEGIN 4 */
-uint32_t Read_ADC_Value(void)
+uint32_t Read_ADC_Value(uint32_t channel)
 {
   uint32_t adc_value = 0;
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  sConfig.Channel = channel;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_84CYCLES;
+
+  HAL_ADC_ConfigChannel(&hadc1, &sConfig);
 
   HAL_ADC_Start(&hadc1);
   HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
@@ -439,7 +453,6 @@ uint32_t Read_ADC_Value(void)
 
   return adc_value;
 }
-/* USER CODE END 4 */
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -469,7 +482,9 @@ void StartDefaultTask(void const * argument)
 /* USER CODE END Header_StartTask02 */
 void StartTask02(void const * argument)
 {
-    thermal_project_initialize();
+  /* USER CODE BEGIN StartTask02 */
+
+    thermal_project_v2_initialize();
 
     while (g_boot_done == 0)
     {
@@ -487,34 +502,48 @@ void StartTask02(void const * argument)
         Error_Handler();
     }
 
+    //PWM for FAN Setting
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
+
     for(;;)
     {
         if (xQueueReceive(qSetTempHandle, &rxMsg, 0) == pdPASS)
         {
         }
 
-        thermal_project_U.set_temp   = rxMsg.set_temp;
-        thermal_project_U.heat_input = rxMsg.heat_input;
+        thermal_project_v2_U.set_temp   = rxMsg.set_temp;
+        thermal_project_v2_U.temp = rxMsg.temp;
 
-        thermal_project_step();
+        thermal_project_v2_step();
 
-        float temp  = (float)thermal_project_Y.temp;
-        float pwm   = (float)thermal_project_Y.pwm_out;
-        float fault = (float)thermal_project_Y.fault_flag;
+        float pwm   = (float)thermal_project_v2_Y.pwm_out;
+        float fault = (float)thermal_project_v2_Y.fault_flag;
+        uint32_t input_pwm = (uint32_t) (pwm * 9.99f);
 
-        if (fault > 0.5f || temp > 70.0f)
+
+
+        // PWM for FAN
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, input_pwm);
+
+
+
+
+
+        if (fault > 0.5f || rxMsg.temp > 70.0f)
         {
-            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);   // Red
-            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // Green
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
         }
         else
         {
-            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // Green
-            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET); // Red
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
         }
 
         logMsg.time_ms  = HAL_GetTick() - start_time;
-        logMsg.temp     = temp;
+        logMsg.temp     = rxMsg.temp;
         logMsg.pwm      = pwm;
         logMsg.fault    = fault;
         logMsg.set_temp = rxMsg.set_temp;
@@ -524,34 +553,9 @@ void StartTask02(void const * argument)
 
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(100));
     }
+
+  /* USER CODE END StartTask02 */
 }
-// for plant simulation
-/*
-void StartTask02(void const * argument)
-{
-  TickType_t xLastWakeTime = xTaskGetTickCount();
-  uint32_t start_time = HAL_GetTick();
-
-  double temp = 25.0;
-  double heat_input = 1.8;
-  double pwm = 0.0;
-
-  for(;;)
-  {
-    temp = temp + ((3.0 * heat_input - 0.08 * pwm) - (temp - 25.0) * 0.02) * 0.1;
-
-    uint32_t t = HAL_GetTick() - start_time;
-
-    if (t <= 10000)
-    {
-    	printf("%lu,%.2f\r\n", t, temp);
-    }
-
-    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(100));
-  }
-}
-*/
-
 
 /* USER CODE BEGIN Header_StartTask03 */
 /**
@@ -562,12 +566,14 @@ void StartTask02(void const * argument)
 /* USER CODE END Header_StartTask03 */
 void StartTask03(void const * argument)
 {
+  /* USER CODE BEGIN StartTask03 */
+
     InputMsg_t txMsg;
     uint8_t rx_char = 0;
 
     printf("\r\nSelect mode:\r\n");
     printf("1: preset\r\n");
-    printf("2: potentiometer\r\n");
+    printf("2: real sensor\r\n");
 
     while (1)
     {
@@ -577,7 +583,7 @@ void StartTask03(void const * argument)
             {
                 txMsg.mode = MODE_PRESET;
                 txMsg.set_temp = 45.0f;
-                txMsg.heat_input = 1.8f;
+                txMsg.temp = 0.0f;
 
                 xQueueOverwrite(qSetTempHandle, &txMsg);
                 g_boot_done = 1;
@@ -586,15 +592,15 @@ void StartTask03(void const * argument)
             }
             else if (rx_char == '2')
             {
-                uint32_t adc_raw = Read_ADC_Value();
+                uint32_t adc_raw = Read_ADC_Value(ADC_CHANNEL_0);
 
                 txMsg.mode = MODE_POT;
-                txMsg.set_temp = 30.0f + ((float)adc_raw * 30.0f / 4095.0f);
-                txMsg.heat_input = 1.8f;
+                txMsg.temp = ((float)adc_raw * 330.0f / 4095.0f);
+                txMsg.set_temp = 28.0f;
 
                 xQueueOverwrite(qSetTempHandle, &txMsg);
                 g_boot_done = 1;
-                printf("Potentiometer mode selected\r\n");
+                printf("Real mode selected\r\n");
                 break;
             }
             else if (rx_char == '\r' || rx_char == '\n')
@@ -611,16 +617,18 @@ void StartTask03(void const * argument)
     {
         if (g_boot_done && txMsg.mode == MODE_POT)
         {
-            uint32_t adc_raw = Read_ADC_Value();
+            uint32_t adc_raw = Read_ADC_Value(ADC_CHANNEL_0);
 
-            txMsg.set_temp = 30.0f + ((float)adc_raw * 30.0f / 4095.0f);
-            txMsg.heat_input = 1.8f;
+            txMsg.temp = ((float)adc_raw * 330.0f / 4095.0f);
+            txMsg.set_temp = 28.0f;
 
             xQueueOverwrite(qSetTempHandle, &txMsg);
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));
     }
+
+  /* USER CODE END StartTask03 */
 }
 
 /* USER CODE BEGIN Header_StartTask04 */
@@ -632,6 +640,8 @@ void StartTask03(void const * argument)
 /* USER CODE END Header_StartTask04 */
 void StartTask04(void const * argument)
 {
+  /* USER CODE BEGIN StartTask04 */
+
     LogMsg_t rxLog;
     uint32_t last_print_sec = 0xFFFFFFFF;
 
@@ -666,16 +676,18 @@ void StartTask04(void const * argument)
                 {
                     last_print_sec = now_sec;
 
-                    printf("[POT] t=%lus | Set Temp=%.2f C | Temp=%.2f C | PWM=%.2f | Fault=%.0f\r\n",
+                    printf("[POT] t=%lus | Now Temp=%.2f C | Set_Temp=%.2f C | PWM=%.2f | Fault=%.0f\r\n",
                            now_sec,
-                           rxLog.set_temp,
                            rxLog.temp,
+                           rxLog.set_temp,
                            rxLog.pwm,
                            rxLog.fault);
                 }
             }
         }
     }
+
+  /* USER CODE END StartTask04 */
 }
 
 /**
