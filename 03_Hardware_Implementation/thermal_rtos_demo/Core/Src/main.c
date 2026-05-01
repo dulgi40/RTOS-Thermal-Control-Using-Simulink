@@ -91,9 +91,9 @@ static void MX_USART2_UART_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 void StartDefaultTask(void const * argument);
-void StartTask02(void const * argument);
-void StartTask03(void const * argument);
-void StartTask04(void const * argument);
+void Control_Task(void const * argument);
+void Input_Task(void const * argument);
+void Logging_Task(void const * argument);
 
 /* USER CODE BEGIN PFP */
 uint32_t Read_ADC_Value(uint32_t channel);
@@ -172,15 +172,15 @@ int main(void)
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of ControlTask */
-  osThreadDef(ControlTask, StartTask02, osPriorityHigh, 0, 512);
+  osThreadDef(ControlTask, Control_Task, osPriorityHigh, 0, 512);
   ControlTaskHandle = osThreadCreate(osThread(ControlTask), NULL);
 
   /* definition and creation of InputTask */
-  osThreadDef(InputTask, StartTask03, osPriorityNormal, 0, 512);
+  osThreadDef(InputTask, Input_Task, osPriorityNormal, 0, 512);
   InputTaskHandle = osThreadCreate(osThread(InputTask), NULL);
 
   /* definition and creation of LoggingTask */
-  osThreadDef(LoggingTask, StartTask04, osPriorityLow, 0, 512);
+  osThreadDef(LoggingTask, Logging_Task, osPriorityLow, 0, 512);
   LoggingTaskHandle = osThreadCreate(osThread(LoggingTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -411,7 +411,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC6 PC8 */
@@ -427,6 +427,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -453,6 +457,17 @@ uint32_t Read_ADC_Value(uint32_t channel)
 
   return adc_value;
 }
+
+__weak void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+
+	if (GPIO_Pin == GPIO_PIN_13){
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
+        __disable_irq();
+        while(1);
+	}
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -473,16 +488,16 @@ void StartDefaultTask(void const * argument)
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_StartTask02 */
+/* USER CODE BEGIN Header_Control_Task */
 /**
 * @brief Function implementing the ControlTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask02 */
-void StartTask02(void const * argument)
+/* USER CODE END Header_Control_Task */
+void Control_Task(void const * argument)
 {
-  /* USER CODE BEGIN StartTask02 */
+  /* USER CODE BEGIN Control_Task */
 
     thermal_project_v2_initialize();
 
@@ -554,20 +569,19 @@ void StartTask02(void const * argument)
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(100));
     }
 
-  /* USER CODE END StartTask02 */
+  /* USER CODE END Control_Task */
 }
 
-/* USER CODE BEGIN Header_StartTask03 */
+/* USER CODE BEGIN Header_Input_Task */
 /**
 * @brief Function implementing the InputTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask03 */
-void StartTask03(void const * argument)
+/* USER CODE END Header_Input_Task */
+void Input_Task(void const * argument)
 {
-  /* USER CODE BEGIN StartTask03 */
-
+  /* USER CODE BEGIN Input_Task */
     InputMsg_t txMsg;
     uint8_t rx_char = 0;
 
@@ -628,19 +642,20 @@ void StartTask03(void const * argument)
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-  /* USER CODE END StartTask03 */
+
+  /* USER CODE END Input_Task */
 }
 
-/* USER CODE BEGIN Header_StartTask04 */
+/* USER CODE BEGIN Header_Logging_Task */
 /**
 * @brief Function implementing the LoggingTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask04 */
-void StartTask04(void const * argument)
+/* USER CODE END Header_Logging_Task */
+void Logging_Task(void const * argument)
 {
-  /* USER CODE BEGIN StartTask04 */
+  /* USER CODE BEGIN Logging_Task */
 
     LogMsg_t rxLog;
     uint32_t last_print_sec = 0xFFFFFFFF;
@@ -687,7 +702,7 @@ void StartTask04(void const * argument)
         }
     }
 
-  /* USER CODE END StartTask04 */
+  /* USER CODE END Logging_Task */
 }
 
 /**
