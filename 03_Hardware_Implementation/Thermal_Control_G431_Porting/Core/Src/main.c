@@ -40,7 +40,7 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 volatile uint32_t number=0;
-volatile uint8_t cnt=0;
+volatile uint32_t cnt=0;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -80,6 +80,13 @@ const osThreadAttr_t LoggingTask_attributes = {
   .priority = (osPriority_t) osPriorityLow,
   .stack_size = 512 * 4
 };
+/* Definitions for CANTask */
+osThreadId_t CANTaskHandle;
+const osThreadAttr_t CANTask_attributes = {
+  .name = "CANTask",
+  .priority = (osPriority_t) osPriorityAboveNormal,
+  .stack_size = 512 * 4
+};
 /* USER CODE BEGIN PV */
 typedef enum
 {
@@ -105,8 +112,19 @@ typedef struct
     uint8_t mode;
 } LogMsg_t;
 
+typedef struct
+{
+	uint32_t time_ms;
+	float temp;
+	float pwm;
+	float fault;
+	float set_temp;
+
+} CANMsg_t;
+
 QueueHandle_t qSetTempHandle;
 QueueHandle_t qLogHandle;
+QueueHandle_t qCANHandle;
 
 volatile uint8_t g_boot_done = 0;
 volatile uint32_t input_pwm = 0;
@@ -124,6 +142,7 @@ void StartDefaultTask(void *argument);
 void Control_Task(void *argument);
 void Input_Task(void *argument);
 void Logging_Task(void *argument);
+void CAN_Task(void *argument);
 
 /* USER CODE BEGIN PFP */
 uint32_t Read_ADC_Value(void);
@@ -175,6 +194,10 @@ int main(void)
   /* USER CODE BEGIN 2 */
   qSetTempHandle = xQueueCreate(1, sizeof(InputMsg_t));
   qLogHandle     = xQueueCreate(8, sizeof(LogMsg_t));
+  qCANHandle = xQueueCreate(10, sizeof(CANMsg_t));
+  HAL_FDCAN_Start(&hfdcan1);
+
+
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -208,6 +231,9 @@ int main(void)
 
   /* creation of LoggingTask */
   LoggingTaskHandle = osThreadNew(Logging_Task, NULL, &LoggingTask_attributes);
+
+  /* creation of CANTask */
+  CANTaskHandle = osThreadNew(CAN_Task, NULL, &CANTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -584,28 +610,6 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
 	  osDelay(1);
-  {	  /*
-	  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
-	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
-	  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 300);
-
-	 HAL_ADC_Start(&hadc1);
-	  if (HAL_ADC_PollForConversion(&hadc1, 10)==HAL_OK){
-		  number = HAL_ADC_GetValue(&hadc1);
-
-		  char msg[20];
-
-		  int len = sprintf(msg, "ADC: %lu\r\n", number);
-
-		  HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, HAL_MAX_DELAY);
-	  }
-	  HAL_ADC_Stop(&hadc1);
-
-	  cnt += 1;
-	    osDelay(1);
-	    */
-  }
   /* USER CODE END 5 */
 }
 
@@ -631,6 +635,8 @@ void Control_Task(void *argument)
 
     InputMsg_t rxMsg;
     LogMsg_t logMsg;
+    CANMsg_t CANMsg;
+
 
     if (xQueueReceive(qSetTempHandle, &rxMsg, portMAX_DELAY) != pdPASS)
     {
@@ -642,8 +648,6 @@ void Control_Task(void *argument)
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
 
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 399);
-    vTaskDelay(pdMS_TO_TICKS(200));
 
 
     for(;;)
@@ -664,7 +668,15 @@ void Control_Task(void *argument)
 
 
         // PWM for FAN
-        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, input_pwm);
+        if(pwm == 0){
+        	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
+        }
+        else if (pwm <= 35){
+        	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 140);
+        }
+        else __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, input_pwm);
+
+
 
 
 
@@ -688,7 +700,15 @@ void Control_Task(void *argument)
         logMsg.set_temp = rxMsg.set_temp;
         logMsg.mode     = rxMsg.mode;
 
+        CANMsg.time_ms = logMsg.time_ms;
+        CANMsg.temp = rxMsg.temp;
+        CANMsg.pwm = pwm;
+        CANMsg.fault = fault;
+        CANMsg.set_temp = rxMsg.set_temp;
+
+
         xQueueSend(qLogHandle, &logMsg, 0);
+        xQueueSend(qCANHandle, &CANMsg, 0);
 
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(100));
     }
@@ -713,8 +733,12 @@ void Input_Task(void *argument)
 
     adc_raw = Read_ADC_Value();
     txMsg.temp = ((float)adc_raw * 330.0f / 4095.0f);
+
+
     xQueueOverwrite(qSetTempHandle, &txMsg);
     g_boot_done = 1;
+
+
 
     for (;;)
     {
@@ -760,20 +784,7 @@ void Logging_Task(void *argument)
 
         if (xQueueReceive(qLogHandle, &rxLog, portMAX_DELAY) == pdPASS)
         {
-        	/*
-            if (rxLog.mode == MODE_PRESET)
-            {
-                if (rxLog.time_ms <= 30000)
-                {
-                    printf("[PRESET] t=%.1fs | Set Temp=%.2f C | Temp=%.2f C | PWM=%.2f | Fault=%.0f\r\n",
-                           rxLog.time_ms / 1000.0f,
-                           rxLog.set_temp,
-                           rxLog.temp,
-                           rxLog.pwm,
-                           rxLog.fault);
-                }
-            }
-            */
+
             if (rxLog.mode == MODE_POT)
             {
                 uint32_t now_sec = rxLog.time_ms / 1000;
@@ -781,18 +792,103 @@ void Logging_Task(void *argument)
                 if (now_sec != last_print_sec)
                 {
                     last_print_sec = now_sec;
-                    printf("[POT] t=%lus | Now Temp=%.2f C | Set_Temp=%.2f C | PWM=%.2f | Fault=%.0f\r\n",
+                    if (rxLog.pwm>0 && rxLog.pwm <= 35){
+                        printf("[POT] t=%lus | Now Temp=%.2f C | Set_Temp=%.2f C | PWM=%.2f, (now the fan is running in minimal speed)  | Fault=%.0f\r\n",
+                               now_sec,
+                               rxLog.temp,
+                               rxLog.set_temp,
+                               rxLog.pwm,
+                               rxLog.fault);
+                    }
+                    else {printf("[POT] t=%lus | Now Temp=%.2f C | Set_Temp=%.2f C | PWM=%.2f | Fault=%.0f\r\n",
                            now_sec,
                            rxLog.temp,
                            rxLog.set_temp,
                            rxLog.pwm,
-                           rxLog.fault);
+                           rxLog.fault);}
                 }
             }
         }
     }
 
   /* USER CODE END Logging_Task */
+}
+
+/* USER CODE BEGIN Header_CAN_Task */
+/**
+* @brief Function implementing the CANTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_CAN_Task */
+void CAN_Task(void *argument)
+{
+  /* USER CODE BEGIN CAN_Task */
+  /* Infinite loop */
+  for(;;)
+  {
+	  CANMsg_t rxData;
+	  FDCAN_TxHeaderTypeDef pTxHeader;
+	  uint8_t pTxData[8];
+	  static TickType_t xStartTime = 0;
+	  if(xStartTime == 0) xStartTime = xTaskGetTickCount();
+
+
+	  if(xQueueReceive(qCANHandle, &rxData, portMAX_DELAY) == pdPASS){
+		  cnt += 1; printf("count : %lu\r\n", cnt);
+
+		  pTxHeader.Identifier = 0x103;
+		  pTxHeader.IdType = FDCAN_STANDARD_ID;
+		  pTxHeader.TxFrameType = FDCAN_DATA_FRAME;
+		  pTxHeader.DataLength = FDCAN_DLC_BYTES_8;
+		  pTxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+		  pTxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+		  pTxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+		  pTxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+		  pTxHeader.MessageMarker = 0;
+
+
+		  uint16_t pwm_data = (uint16_t)(rxData.pwm*100.0f);
+		  uint16_t set_temp_data = (uint16_t)(rxData.set_temp*100.0f);
+		  uint16_t temp_data = (uint16_t)(rxData.temp*100.0f);
+
+		  TickType_t xTime = (xTaskGetTickCount() - xStartTime)/100;
+
+		  pTxData[0] = (uint8_t)xTime;
+		  pTxData[1] = (uint8_t)((pwm_data >> 8) & 0xFF);
+		  pTxData[2] = (uint8_t)(pwm_data & 0xFF);
+		  pTxData[3] = (uint8_t)((set_temp_data >> 8) & 0xFF);
+		  pTxData[4] = (uint8_t)(set_temp_data & 0xFF);
+		  pTxData[5] = (uint8_t)((temp_data >> 8) & 0xFF);
+		  pTxData[6] = (uint8_t)(temp_data & 0xFF);
+		  pTxData[7] = (uint8_t)rxData.fault;
+
+		  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &pTxHeader, pTxData);
+
+
+		  pTxHeader.Identifier = 0x104;
+		  pTxHeader.IdType = FDCAN_STANDARD_ID;
+		  pTxHeader.TxFrameType = FDCAN_DATA_FRAME;
+		  pTxHeader.DataLength = FDCAN_DLC_BYTES_8;
+		  pTxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+		  pTxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+		  pTxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+		  pTxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+		  pTxHeader.MessageMarker = 0;
+
+		  TickType_t xTime = (xTaskGetTickCount() - xStartTime);
+
+		  pTxData[0] = (uint8_t)((xTime >> 24) | 0xFF);
+		  pTxData[1] = (uint8_t)((xTime >> 16) | 0xFF);
+		  pTxData[2] = (uint8_t)((xTime >> 8) | 0xFF);
+		  pTxData[3] = (uint8_t)(xTime | 0xFF);
+
+		  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &pTxHeader, pTxData);
+
+	  }
+
+  }
+  /* USER CODE END CAN_Task */
 }
 
 /**
