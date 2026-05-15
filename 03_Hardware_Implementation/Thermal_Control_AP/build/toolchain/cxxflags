@@ -1,0 +1,7 @@
+-Wno-frame-address
+-mlongcalls
+-fno-builtin-memcpy
+-fno-builtin-memset
+-fno-builtin-bzero
+"-specs=C:/Users/vayne/workspace/RTOS-Thermal-Control-Using-Simulink/03_Hardware_Implementation/Thermal_Control_AP/build/specs/picolibc.specs"
+-fno-rtti

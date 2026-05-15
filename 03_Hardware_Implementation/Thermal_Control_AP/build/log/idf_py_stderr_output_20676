@@ -1,0 +1,23 @@
+Command: cmake -G Ninja -B C:\Users\vayne\workspace\RTOS-Thermal-Control-Using-Simulink\03_Hardware_Implementation\Thermal_Control_AP\build -DPYTHON_DEPS_CHECKED=1 -DPYTHON=C:\Espressif\tools\python\v6.0.1\venv\Scripts\python.exe -DESP_PLATFORM=1 -DCCACHE_ENABLE=False C:\Users\vayne\workspace\RTOS-Thermal-Control-Using-Simulink\03_Hardware_Implementation\Thermal_Control_AP
+Configuration Report               
++---------------------------------+
+|  Parser Version: 1              |
+|  Verbosity: default             |
+|  Defaults policy: sdkconfig     |
+|  Status: Finished successfully  |
+|                                 |
++---------------------------------+
+CMake Warning in C:/esp/v6.0.1/esp-idf/components/mbedtls/mbedtls/tf-psa-crypto/core/CMakeLists.txt:
+  The object file directory
+
+    C:/Users/vayne/workspace/RTOS-Thermal-Control-Using-Simulink/03_Hardware_Implementation/Thermal_Control_AP/build/esp-idf/mbedtls/mbedtls/tf-psa-crypto/core/CMakeFiles/tfpsacrypto.dir/./
+
+  has 185 characters.  The maximum full path to an object file is 250
+  characters (see CMAKE_OBJECT_PATH_MAX).  Object file
+
+    b7aa159eed7141a829dd4d33293f18c1/psa_crypto_driver_esp_sha256.c.obj
+
+  cannot be safely placed under this directory.  The build may not work
+  correctly.
+
+
